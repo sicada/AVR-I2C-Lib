@@ -6,7 +6,7 @@
 
 void I2C_init(uint8_t address){
 	// load address into TWI address register
-	TWAR = address;
+	TWAR = (address << 1);
 	// set the TWCR to enable address matching and enable TWI, clear TWINT, enable TWI interrupt
 	TWCR = (1<<TWIE) | (1<<TWEA) | (1<<TWINT) | (1<<TWEN);
 }
