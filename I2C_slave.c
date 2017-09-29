@@ -54,8 +54,10 @@ ISR(TWI_vect){
 				TWCR |= (1<<TWIE) | (1<<TWINT) | (1<<TWEA) | (1<<TWEN); 
 			}
 			else{
-				// clear TWI interrupt flag, prepare to receive last byte and don't acknowledge
-				TWCR |= (1<<TWIE) | (1<<TWINT) | (0<<TWEA) | (1<<TWEN); 
+				// Don't acknowledge
+				TWCR &= ~(1<<TWEA); 
+				// clear TWI interrupt flag, prepare to receive last byte.
+				TWCR |= (1<<TWIE) | (1<<TWINT) | (1<<TWEN); 
 			}
 		}
 	}
@@ -80,8 +82,10 @@ ISR(TWI_vect){
 			TWCR |= (1<<TWIE) | (1<<TWINT) | (1<<TWEA) | (1<<TWEN); 
 		}
 		else{
-			// clear TWI interrupt flag, prepare to send last byte and receive not acknowledge
-			TWCR |= (1<<TWIE) | (1<<TWINT) | (0<<TWEA) | (1<<TWEN); 
+			// Don't acknowledge
+			TWCR &= ~(1<<TWEA); 
+			// clear TWI interrupt flag, prepare to receive last byte.
+			TWCR |= (1<<TWIE) | (1<<TWINT) | (1<<TWEN); 
 		}
 		
 	}
