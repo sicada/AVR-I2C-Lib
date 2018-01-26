@@ -1,4 +1,5 @@
 #include <avr/io.h>
+#include <avr/cpufunc.h>
 #include <util/twi.h>
 #include <avr/interrupt.h>
 
@@ -29,17 +30,21 @@ ISR (TWI_vect) {
     // -- Called in Slave Receiver Mode -------------------------------------
 	// This MCU's own address has been called by a master on the bus,
     // on the next interrupt cycle data will presumably be received
-	if (status == TW_SR_SLA_ACK ) {
+	if (status == TW_SR_SLA_ACK) {
 		buffer_address = 0xFF;
+
 		// Clear TWI interrupt flag,
         // prepare to receive next byte and acknowledge
 		TWCR |= (1<<TWIE) | (1<<TWINT) | (1<<TWEA) | (1<<TWEN);
+
+        // Execute whatever external function is assigned to this callback
+        i2c_address_matched(I2C_SLAVE_RECEIVER_MODE);
 	}
 
     // -- Received data in Slave Receiver Mode ------------------------------
     // The MCU is in slave receiver mode and a data byte
     // has been received from a master on the bus
-	else if (status == TW_SR_DATA_ACK ) {
+	else if (status == TW_SR_DATA_ACK) {
 		data = TWDR;
 
 		// Check if a register has been set/selected.
@@ -50,6 +55,9 @@ ISR (TWI_vect) {
 			// Clear TWI interrupt flag,
             // prepare to receive next byte and acknowledge
 			TWCR |= (1<<TWIE) | (1<<TWINT) | (1<<TWEA) | (1<<TWEN);
+
+            // Execute whatever external function is assigned to this callback
+            i2c_register_address_received(data);
 		}
 
         // A register was previously set, so assume this data byte
@@ -74,6 +82,9 @@ ISR (TWI_vect) {
 				// Clear TWI interrupt flag, prepare to receive last byte.
 				TWCR |= (1<<TWIE) | (1<<TWINT) | (1<<TWEN);
 			}
+
+            // Execute whatever external function is assigned to this callback
+            i2c_data_value_received(data);
 		}
 	}
 
@@ -86,6 +97,9 @@ ISR (TWI_vect) {
 		// Clear the TWI interrupt flag,
         // prepare to receive next byte and acknowledge
 		TWCR |= (1<<TWIE) | (1<<TWINT) | (1<<TWEA) | (1<<TWEN);
+
+        // Execute whatever external function is assigned to this callback
+        i2c_address_matched(I2C_SLAVE_TRANSMITTER_MODE);
 	}
 
     // -- Transmitter data in Slave Transmitter Mode ------------------------
