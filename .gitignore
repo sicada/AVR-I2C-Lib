@@ -8,6 +8,4 @@
 *.o
 *.sym
 .dep
-
-# ignore the PDF datasheets in the directory
-*.pdf
+*.gch

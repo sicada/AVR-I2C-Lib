@@ -4,101 +4,117 @@
 
 #include "I2C_slave.h"
 
-void I2C_init (uint8_t address) {
-	// load address into TWI address register
+void I2C_init_slave (uint8_t address) {
+	// Load slave address into TWI address register
 	TWAR = (address << 1);
-	// set the TWCR to enable address matching and enable TWI, clear TWINT, enable TWI interrupt
+
+	// Set the TWCR to enable address matching and
+    // enable TWI, clear TWINT, enable TWI interrupt
 	TWCR = (1<<TWIE) | (1<<TWEA) | (1<<TWINT) | (1<<TWEN);
 }
 
+
 void I2C_stop (void) {
-	// clear acknowledge and enable bits
+	// Clear acknowledge and enable bits
 	TWCR &= ~( (1<<TWEA) | (1<<TWEN) );
 }
 
-ISR (TWI_vect) {
 
-	// temporary stores the received data
+ISR (TWI_vect) {
+	// Temporarily stores the received data
 	uint8_t data;
 
-	// own address has been acknowledged
+    // -- Called in Slave Receiver Mode -------------------------------------
+	// This MCU's own address has been called by a master on the bus,
+    // on the next interrupt cycle data will presumably be received
 	if ( (TWSR & 0xF8) == TW_SR_SLA_ACK ) {
 		buffer_address = 0xFF;
-		// clear TWI interrupt flag, prepare to receive next byte and acknowledge
+		// Clear TWI interrupt flag,
+        // prepare to receive next byte and acknowledge
 		TWCR |= (1<<TWIE) | (1<<TWINT) | (1<<TWEA) | (1<<TWEN);
 	}
 
-    // data has been received in slave receiver mode
+    // -- Received data in Slave Receiver Mode ------------------------------
+    // The MCU is in slave receiver mode and a data byte
+    // has been received from a master on the bus
 	else if ( (TWSR & 0xF8) == TW_SR_DATA_ACK ) {
-
-		// save the received byte inside data
 		data = TWDR;
 
-		// check wether an address has already been transmitted or not
+		// Check if a register has been set/selected.
+        // If not, assume this received byte is the register address.
 		if (buffer_address == 0xFF) {
-
 			buffer_address = data;
 
-			// clear TWI interrupt flag, prepare to receive next byte and acknowledge
+			// Clear TWI interrupt flag,
+            // prepare to receive next byte and acknowledge
 			TWCR |= (1<<TWIE) | (1<<TWINT) | (1<<TWEA) | (1<<TWEN);
 		}
 
-        // if a databyte has already been received
+        // A register was previously set, so assume this data byte
+        // is a value to store into the previously selected register
 		else {
 
 			// store the data at the current address
-			rxbuffer[buffer_address] = data;
+			i2c_rx_buffer[buffer_address] = data;
 
-			// increment the buffer address
 			buffer_address++;
 
-			// if there is still enough space inside the buffer
-			if(buffer_address < 0xFF){
-				// clear TWI interrupt flag, prepare to receive next byte and acknowledge
+			// If there is still enough space inside the buffer
+			if (buffer_address < 0xFF) {
+				// Clear TWI interrupt flag, prepare to receive
+                // next byte and acknowledge
 				TWCR |= (1<<TWIE) | (1<<TWINT) | (1<<TWEA) | (1<<TWEN);
 			}
-			else{
-				// Don't acknowledge
+
+            // Don't acknowledge; the buffer is full
+			else {
 				TWCR &= ~(1<<TWEA);
-				// clear TWI interrupt flag, prepare to receive last byte.
+				// Clear TWI interrupt flag, prepare to receive last byte.
 				TWCR |= (1<<TWIE) | (1<<TWINT) | (1<<TWEN);
 			}
 		}
 	}
 
-    // device has been addressed to be a transmitter
+    // -- Called in Slave Transmitter Mode ----------------------------------
+	// This MCU's own address has been called by a master on the bus,
+    // on the next interrupt cycle data will presumably be transmitted
+    else if ( (TWSR & 0xF8) == TW_ST_SLA_ACK) {
+		TWDR = i2c_tx_buffer[buffer_address];
+
+		// Clear the TWI interrupt flag,
+        // prepare to receive next byte and acknowledge
+		TWCR |= (1<<TWIE) | (1<<TWINT) | (1<<TWEA) | (1<<TWEN);
+	}
+
+    // -- Transmitter data in Slave Transmitter Mode ------------------------
+    // The MCU is in slave transmitter mode and a data byte
+    // has been transmitted back to a master on the bus
 	else if ( (TWSR & 0xF8) == TW_ST_DATA_ACK ) {
+		// Copy the specified buffer address into the
+        // TWDR register for transmission
+		TWDR = i2c_tx_buffer[buffer_address];
 
-		// copy data from TWDR to the temporary memory
-		data = TWDR;
-
-		// if no buffer read address has been sent yet
-		if( buffer_address == 0xFF ){
-			buffer_address = data;
-		}
-
-		// copy the specified buffer address into the TWDR register for transmission
-		TWDR = txbuffer[buffer_address];
-		// increment buffer read address
 		buffer_address++;
 
-		// if there is another buffer address that can be sent
+		// If there is another buffer address that can be sent
 		if (buffer_address < 0xFF) {
 			// clear TWI interrupt flag, prepare to send next byte and receive acknowledge
 			TWCR |= (1<<TWIE) | (1<<TWINT) | (1<<TWEA) | (1<<TWEN);
 		}
 
+        // Don't acknowledge; end of buffer was reached,
+        // No more data can be sent
 		else {
-			// Don't acknowledge
 			TWCR &= ~(1<<TWEA);
 			// clear TWI interrupt flag, prepare to receive last byte.
 			TWCR |= (1<<TWIE) | (1<<TWINT) | (1<<TWEN);
 		}
 
 	}
-    
+
+	// If none of the above apply prepare the TWI to
+    // listen on the bus and respond to future requests
 	else {
-		// if none of the above apply prepare TWI to be addressed again
 		TWCR |= (1<<TWIE) | (1<<TWEA) | (1<<TWEN);
 	}
 }
