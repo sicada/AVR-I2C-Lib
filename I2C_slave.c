@@ -4,6 +4,7 @@
 
 #include "I2C_slave.h"
 
+
 void I2C_init_slave (uint8_t address) {
 	// Load slave address into TWI address register
 	TWAR = (address << 1);
@@ -23,11 +24,12 @@ void I2C_stop (void) {
 ISR (TWI_vect) {
 	// Temporarily stores the received data
 	uint8_t data;
+    uint8_t status = (TWSR & 0xF8);
 
     // -- Called in Slave Receiver Mode -------------------------------------
 	// This MCU's own address has been called by a master on the bus,
     // on the next interrupt cycle data will presumably be received
-	if ( (TWSR & 0xF8) == TW_SR_SLA_ACK ) {
+	if (status == TW_SR_SLA_ACK ) {
 		buffer_address = 0xFF;
 		// Clear TWI interrupt flag,
         // prepare to receive next byte and acknowledge
@@ -37,7 +39,7 @@ ISR (TWI_vect) {
     // -- Received data in Slave Receiver Mode ------------------------------
     // The MCU is in slave receiver mode and a data byte
     // has been received from a master on the bus
-	else if ( (TWSR & 0xF8) == TW_SR_DATA_ACK ) {
+	else if (status == TW_SR_DATA_ACK ) {
 		data = TWDR;
 
 		// Check if a register has been set/selected.
@@ -78,7 +80,7 @@ ISR (TWI_vect) {
     // -- Called in Slave Transmitter Mode ----------------------------------
 	// This MCU's own address has been called by a master on the bus,
     // on the next interrupt cycle data will presumably be transmitted
-    else if ( (TWSR & 0xF8) == TW_ST_SLA_ACK) {
+    else if (status == TW_ST_SLA_ACK) {
 		TWDR = i2c_tx_buffer[buffer_address];
 
 		// Clear the TWI interrupt flag,
@@ -89,7 +91,7 @@ ISR (TWI_vect) {
     // -- Transmitter data in Slave Transmitter Mode ------------------------
     // The MCU is in slave transmitter mode and a data byte
     // has been transmitted back to a master on the bus
-	else if ( (TWSR & 0xF8) == TW_ST_DATA_ACK ) {
+	else if (status == TW_ST_DATA_ACK ) {
 		// Copy the specified buffer address into the
         // TWDR register for transmission
 		TWDR = i2c_tx_buffer[buffer_address];
@@ -98,7 +100,8 @@ ISR (TWI_vect) {
 
 		// If there is another buffer address that can be sent
 		if (buffer_address < 0xFF) {
-			// clear TWI interrupt flag, prepare to send next byte and receive acknowledge
+			// Clear TWI interrupt flag, prepare to
+            // send next byte and receive acknowledge
 			TWCR |= (1<<TWIE) | (1<<TWINT) | (1<<TWEA) | (1<<TWEN);
 		}
 
